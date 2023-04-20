@@ -19,7 +19,9 @@ MFRC522 mfrc522(0x28);
 unsigned long tagDetectionDuration = 0;//ドアが開いている時間（RFIDが検出されていない時間）
 bool isMessage = false; //今日の通知を送ったかどうか
 
+
 void setup() {
+    //共通の設定
     Serial.begin(9600);
     M5.begin();   //M5stackオブジェクトの初期化         
     M5.Power.begin();
@@ -57,9 +59,6 @@ void loop() {
 
     //NTPサーバーから時刻取得のため更新
     GetTime();
-    
-    // M5.Lcd.setCursor(40, 47);
-    // M5.Lcd.fillRect(42, 47, 320, 20, BLACK); //Please put the cardを邪魔しないため
 
     //1日一回だけ実行、sendMessage送ったらもう実行しない。日付が変わればまた
     if(!isMessage){
@@ -69,13 +68,13 @@ void loop() {
         tagDetectionDuration += 50;
       }
 
-      if (tagDetectionDuration >= 500) { // タグが1000ms以上検出できない場合、ドアが開いているとする
+      if (tagDetectionDuration >= 150) { // タグが1000ms以上検出できない場合、ドアが開いているとする
         M5.Lcd.println("Door Opened");
         sendNotification();
       } else {
         M5.Lcd.println("Door Closed");
       }
-      delay(100);
+      delay(500);
     }else{
       //誰かが鍵を開けた
 
