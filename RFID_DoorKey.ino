@@ -1,14 +1,17 @@
 #include <M5Stack.h>
 #include <WiFi.h>
 #include <NTPClient.h>
-#include <WiFiUdp.h>
 #include "MFRC522_I2C.h"
+#include <HTTPClient.h>
+
 
 // WiFi接続情報
-// const char *ssid     = "Buffalo-2G-47c0";
+// const char *ssid     = "Buffalo-2G-47C0";
 // const char *password = "7ksad38v5svea";
 const char *ssid     = "elecom2g-f297fb";
 const char *password = "97pn7752rjdj";
+const char *webhookUrl = "https://hooks.slack.com/services/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";
+
 
 // NTPクライアントの設定
 WiFiUDP ntpUDP;
@@ -16,9 +19,70 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", 9 * 3600, 60000);
 
 //RFIDタグの初期化
 MFRC522 mfrc522(0x28);
+
 unsigned long tagDetectionDuration = 0;//ドアが開いている時間（RFIDが検出されていない時間）
+
 bool isMessage = false; //今日の通知を送ったかどうか
 
+void postMessage(String message) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(webhookUrl);
+    http.addHeader("Content-Type", "application/json");
+
+    String payload = "{\"text\":\"" + message + "\"}";
+
+    int httpResponseCode = http.POST(payload);
+    if (httpResponseCode == 200) {
+      M5.Lcd.println("Notification sent to Slack!");
+    } else {
+      M5.Lcd.println("Failed to send notification.");
+    }
+    http.end();
+  } else {
+    M5.Lcd.println("No Wi-Fi connection.");
+  }
+}
+
+//現在の時刻をm5stackに出力
+void GetTime(){
+    timeClient.update();
+
+    //現在時刻の出力
+    M5.Lcd.println("Current time:");
+    String formattedTime = timeClient.getFormattedTime();//format: 13:47:40
+    M5.Lcd.println(formattedTime);
+    M5.Lcd.println("");
+
+    
+}
+
+//
+void updateFlag(){
+    timeClient.update();
+
+    //時間と日付の取得
+    int currentDay = timeClient.getDay();
+    int currentHour = timeClient.getHours();
+    int currentSeconds = timeClient.getSeconds();//テスト用
+
+    //m5stackに出力
+    M5.Lcd.print("Hour: ");
+    M5.Lcd.println(currentHour);
+    M5.Lcd.print("Seconds: ");
+    M5.Lcd.println(currentSeconds);
+
+    //本番（0時になったらisMessageを更新）
+    // if(currentHour == 0){
+    //   isMessage = true;
+    // }
+
+    //テスト（0秒になったら(1分ごと)isMessageを更新）
+    if(currentSeconds == 0){
+      isMessage = false;
+      lastDay = currentDay;
+    }
+}
 
 void setup() {
     //共通の設定
@@ -70,30 +134,16 @@ void loop() {
 
       if (tagDetectionDuration >= 150) { // タグが1000ms以上検出できない場合、ドアが開いているとする
         M5.Lcd.println("Door Opened");
-        sendNotification();
+        postMessage("key");
+        isMessage = true;
       } else {
         M5.Lcd.println("Door Closed");
       }
       delay(500);
     }else{
-      //誰かが鍵を開けた
-
-      //次の日になったら、isMessageをfalseにする
-
+      //次の日になったらisMessageを更新する
+      updateFlag();
+      delay(1000);
       return;
     }
-}
-
-void sendNotification() {
-  //slackへの通知
-  //isMessage = true;
-}
-
-void GetTime(){
-timeClient.update();
-    M5.Lcd.println("Current time:");
-    String formattedTime = timeClient.getFormattedTime();
-    M5.Lcd.println(formattedTime);
-    M5.Lcd.println("");
-    //delay(1000);
 }
